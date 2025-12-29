@@ -2,6 +2,12 @@
 
 一个专业的 WordPress B2B 产品展示插件，支持产品管理、分类管理、多图上传、询价功能等。
 
+## 页面截图
+
+<img width="2790" height="1412" alt="image" src="https://github.com/user-attachments/assets/e1f7e682-f54f-4c68-8cba-44d18f0b45ec" />
+
+<img width="3840" height="7950" alt="image" src="https://github.com/user-attachments/assets/ef873c0c-10a0-4d8b-87c6-a208beb840e4" />
+
 ## 功能特性
 
 ### 核心功能
