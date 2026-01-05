@@ -220,6 +220,7 @@ get_header();
 
     .b2b-product-detail-actions {
         margin-top: 30px;
+        display: flex;
     }
 
     .b2b-product-view-btn {

@@ -67,6 +67,7 @@ foreach ($categories as $cat) {
                 $product_category = isset($product['category_id']) && isset($categories_map[$product['category_id']]) 
                     ? $categories_map[$product['category_id']] 
                     : null;
+                $product_url = B2B_Products_Frontend::get_product_url($product['id']);
             ?>
                 <div class="b2b-product-item" data-category-id="<?php echo isset($product['category_id']) ? esc_attr($product['category_id']) : ''; ?>">
                     <div class="b2b-product-images">
@@ -101,26 +102,10 @@ foreach ($categories as $cat) {
                     </div>
                     
                     <div class="b2b-product-content">
-                        <?php 
-                        $product_url = B2B_Products_Frontend::get_product_url($product['id']);
-                        ?>
                         <h3 class="b2b-product-title">
                             <a href="<?php echo esc_url($product_url); ?>"><?php echo esc_html($product['product_name']); ?></a>
                         </h3>
-                        <?php 
-                        $product_description = isset($product['product_highlights']) ? $product['product_highlights'] : $product['product_description'];
-                        if (!empty($product_description)): 
-                            // Show excerpt only
-                            $excerpt = wp_trim_words(strip_tags($product_description), 20, '...');
-                        ?>
-                            <div class="b2b-product-description">
-                                <?php echo esc_html($excerpt); ?>
-                            </div>
-                        <?php endif; ?>
                         <div class="b2b-product-actions">
-                            <a href="<?php echo esc_url($product_url); ?>" class="b2b-product-view-btn">
-                                View Details
-                            </a>
                             <a href="<?php echo esc_url($inquiry_url); ?>" class="b2b-product-inquiry-btn">
                                 <?php echo esc_html($inquiry_button_text); ?>
                             </a>

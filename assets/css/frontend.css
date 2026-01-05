@@ -279,15 +279,17 @@
 }
 
 .b2b-product-inquiry-btn {
-    display: inline-block;
-    padding: 12px 30px;
-    background: #0073aa;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 4px;
-    font-weight: 500;
-    transition: background 0.3s ease;
+    width: 100%;
+    color: #222;
+    font-size: 14px;
     text-align: center;
+    font-weight: 600;
+    text-decoration: none;
+    line-height: 36px;
+    height: 38px;
+    border-radius: 19px;
+    border: 1px solid #222;
+    background: #fff;
 }
 
 .b2b-product-inquiry-btn:hover {
