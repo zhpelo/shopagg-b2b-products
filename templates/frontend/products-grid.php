@@ -5,7 +5,8 @@ if (!defined('ABSPATH')) {
 
 $columns = isset($atts['columns']) ? intval($atts['columns']) : 3;
 $column_class = 'b2b-products-columns-' . $columns;
-$show_filters = isset($show_filters) ? $show_filters : true;
+// Get show_filters from atts (passed from shortcode) or use default true
+$show_filters = isset($atts['show_filters']) ? (bool)$atts['show_filters'] : (isset($show_filters) ? $show_filters : true);
 $categories = isset($categories) ? $categories : array();
 $current_category_slug = isset($atts['category']) ? $atts['category'] : '';
 $category_locked = isset($atts['category_locked']) ? $atts['category_locked'] : false;

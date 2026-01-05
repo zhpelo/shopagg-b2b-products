@@ -20,6 +20,7 @@ class B2B_Products_Frontend {
     
     private function __construct() {
         add_shortcode('b2b_products', array($this, 'products_shortcode'));
+        add_shortcode('b2b_products_categories', array($this, 'categories_shortcode'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_scripts'));
         add_action('init', array($this, 'add_rewrite_rules'));
         add_filter('query_vars', array($this, 'add_query_vars'));
@@ -222,7 +223,10 @@ class B2B_Products_Frontend {
         $inquiry_url = get_option('b2b_products_inquiry_url', '#contact');
         $inquiry_button_text = get_option('b2b_products_inquiry_button_text', 'Request Quote');
         $categories = B2B_Products_Database::get_all_categories();
-        $show_filters = $atts['show_filters'] === 'yes';
+        
+        // Process show_filters parameter - support yes/no, true/false, 1/0
+        $show_filters_value = strtolower(trim($atts['show_filters']));
+        $show_filters = in_array($show_filters_value, array('yes', 'true', '1', 'on'), true);
         
         // Pass category slug to template
         $atts['category'] = $category_slug;
@@ -232,9 +236,62 @@ class B2B_Products_Frontend {
         $atts['total_pages'] = $total_pages;
         $atts['total_count'] = $total_count;
         $atts['per_page'] = $per_page;
+        $atts['show_filters'] = $show_filters; // Pass boolean value to template
         
         ob_start();
         include B2B_PRODUCTS_PLUGIN_DIR . 'templates/frontend/products-grid.php';
+        return ob_get_clean();
+    }
+    
+    /**
+     * Categories shortcode - Display category tree
+     */
+    public function categories_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'show_count' => 'yes',
+            'show_description' => 'no',
+            'expand_all' => 'no',
+            'link_to_products' => 'yes'
+        ), $atts);
+        
+        // Get category tree
+        $category_tree = B2B_Products_Database::get_category_tree();
+        
+        // Get all categories for product count
+        $all_categories = B2B_Products_Database::get_all_categories();
+        $categories_map = array();
+        foreach ($all_categories as $cat) {
+            $categories_map[$cat['id']] = B2B_Products_Database::get_category_product_count($cat['id']);
+        }
+        
+        // Build products page URL
+        $products_page_url = '';
+        // Try to find a page with [b2b_products] shortcode
+        $pages = get_pages(array('post_status' => 'publish'));
+        foreach ($pages as $page) {
+            if (has_shortcode($page->post_content, 'b2b_products')) {
+                $products_page_url = get_permalink($page->ID);
+                break;
+            }
+        }
+        // If no page found, use current page or home
+        if (empty($products_page_url)) {
+            global $post;
+            if ($post) {
+                $products_page_url = get_permalink($post->ID);
+            } else {
+                $products_page_url = home_url();
+            }
+        }
+        
+        // Pass data to template
+        $atts['show_count'] = $atts['show_count'] === 'yes';
+        $atts['show_description'] = $atts['show_description'] === 'yes';
+        $atts['expand_all'] = $atts['expand_all'] === 'yes';
+        $atts['link_to_products'] = $atts['link_to_products'] === 'yes';
+        
+        ob_start();
+        include B2B_PRODUCTS_PLUGIN_DIR . 'templates/frontend/categories-tree.php';
         return ob_get_clean();
     }
 }

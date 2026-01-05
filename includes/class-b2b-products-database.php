@@ -43,14 +43,23 @@ class B2B_Products_Database {
             category_name varchar(255) NOT NULL,
             category_description text,
             category_slug varchar(255) NOT NULL,
+            parent_id bigint(20) DEFAULT NULL,
             sort_order int(11) DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY category_slug (category_slug)
+            UNIQUE KEY category_slug (category_slug),
+            KEY parent_id (parent_id)
         ) $charset_collate;";
         
         dbDelta($categories_sql);
+        
+        // Add parent_id column if it doesn't exist (for existing installations)
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $categories_table_name LIKE 'parent_id'");
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE $categories_table_name ADD COLUMN parent_id bigint(20) DEFAULT NULL AFTER category_slug");
+            $wpdb->query("ALTER TABLE $categories_table_name ADD KEY parent_id (parent_id)");
+        }
         
         // Ensure indexes exist for products table
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'");
@@ -241,6 +250,92 @@ class B2B_Products_Database {
     }
     
     /**
+     * Get categories by parent ID
+     */
+    public static function get_categories_by_parent($parent_id = null) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . B2B_PRODUCTS_CATEGORIES_TABLE_NAME;
+        
+        if ($parent_id === null) {
+            // Get top-level categories (parent_id is NULL)
+            return $wpdb->get_results("SELECT * FROM $table_name WHERE parent_id IS NULL ORDER BY sort_order ASC, id ASC", ARRAY_A);
+        } else {
+            // Get child categories of a specific parent
+            return $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_name WHERE parent_id = %d ORDER BY sort_order ASC, id ASC",
+                $parent_id
+            ), ARRAY_A);
+        }
+    }
+    
+    /**
+     * Get category tree (hierarchical structure)
+     */
+    public static function get_category_tree() {
+        $all_categories = self::get_all_categories();
+        $tree = array();
+        $categories_by_id = array();
+        
+        // Index categories by ID
+        foreach ($all_categories as $category) {
+            $categories_by_id[$category['id']] = $category;
+            $categories_by_id[$category['id']]['children'] = array();
+        }
+        
+        // Build tree structure
+        foreach ($all_categories as $category) {
+            $parent_id = isset($category['parent_id']) ? intval($category['parent_id']) : null;
+            if ($parent_id && $parent_id > 0 && isset($categories_by_id[$parent_id])) {
+                $categories_by_id[$parent_id]['children'][] = &$categories_by_id[$category['id']];
+            } else {
+                $tree[] = &$categories_by_id[$category['id']];
+            }
+        }
+        
+        return $tree;
+    }
+    
+    /**
+     * Get category ancestors (parent chain)
+     */
+    public static function get_category_ancestors($category_id) {
+        $ancestors = array();
+        $category = self::get_category($category_id);
+        
+        while ($category) {
+            $parent_id = isset($category['parent_id']) ? intval($category['parent_id']) : null;
+            if ($parent_id && $parent_id > 0) {
+                $parent = self::get_category($parent_id);
+                if ($parent) {
+                    array_unshift($ancestors, $parent);
+                    $category = $parent;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        
+        return $ancestors;
+    }
+    
+    /**
+     * Get category descendants (all children recursively)
+     */
+    public static function get_category_descendants($category_id) {
+        $descendants = array();
+        $children = self::get_categories_by_parent($category_id);
+        
+        foreach ($children as $child) {
+            $descendants[] = $child;
+            $descendants = array_merge($descendants, self::get_category_descendants($child['id']));
+        }
+        
+        return $descendants;
+    }
+    
+    /**
      * Get category by ID
      */
     public static function get_category($id) {
@@ -279,15 +374,18 @@ class B2B_Products_Database {
             $data['category_slug'] = $slug;
         }
         
+        $parent_id_value = (isset($data['parent_id']) && $data['parent_id'] !== '' && $data['parent_id'] !== null) ? intval($data['parent_id']) : null;
+        
         $wpdb->insert(
             $table_name,
             array(
                 'category_name' => sanitize_text_field($data['category_name']),
                 'category_description' => wp_kses_post($data['category_description'] ?? ''),
                 'category_slug' => sanitize_title($data['category_slug']),
+                'parent_id' => $parent_id_value,
                 'sort_order' => intval($data['sort_order'] ?? 0)
             ),
-            array('%s', '%s', '%s', '%d')
+            array('%s', '%s', '%s', $parent_id_value ? '%d' : '%s', '%d')
         );
         
         return $wpdb->insert_id;
@@ -327,6 +425,27 @@ class B2B_Products_Database {
             }
         }
         
+        if (isset($data['parent_id'])) {
+            $parent_id_value = ($data['parent_id'] === '' || $data['parent_id'] === null) ? null : intval($data['parent_id']);
+            
+            // Prevent setting a category as its own parent
+            if ($parent_id_value == $id) {
+                return false;
+            }
+            
+            // Prevent setting a descendant as parent (circular reference)
+            if ($parent_id_value) {
+                $descendants = self::get_category_descendants($id);
+                $descendant_ids = array_column($descendants, 'id');
+                if (in_array($parent_id_value, $descendant_ids)) {
+                    return false;
+                }
+            }
+            
+            $update_data['parent_id'] = $parent_id_value;
+            $update_format[] = $parent_id_value ? '%d' : '%s'; // NULL needs %s format
+        }
+        
         if (isset($data['sort_order'])) {
             $update_data['sort_order'] = intval($data['sort_order']);
             $update_format[] = '%d';
@@ -353,15 +472,28 @@ class B2B_Products_Database {
         $table_name = $wpdb->prefix . B2B_PRODUCTS_CATEGORIES_TABLE_NAME;
         $products_table = $wpdb->prefix . B2B_PRODUCTS_TABLE_NAME;
         
-        // Set products' category_id to NULL before deleting category
-        $wpdb->update(
-            $products_table,
-            array('category_id' => null),
-            array('category_id' => $id),
-            array('%d'),
-            array('%d')
-        );
+        // Get all descendants
+        $descendants = self::get_category_descendants($id);
+        $descendant_ids = array_column($descendants, 'id');
+        $all_ids_to_delete = array_merge(array($id), $descendant_ids);
         
+        // Set products' category_id to NULL for all categories being deleted
+        foreach ($all_ids_to_delete as $cat_id) {
+            $wpdb->update(
+                $products_table,
+                array('category_id' => null),
+                array('category_id' => $cat_id),
+                array('%d'),
+                array('%d')
+            );
+        }
+        
+        // Delete all child categories first
+        foreach ($descendant_ids as $descendant_id) {
+            $wpdb->delete($table_name, array('id' => $descendant_id), array('%d'));
+        }
+        
+        // Delete the category itself
         return $wpdb->delete($table_name, array('id' => $id), array('%d'));
     }
     

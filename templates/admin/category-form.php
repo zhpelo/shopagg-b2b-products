@@ -7,7 +7,12 @@ $is_edit = !empty($category);
 $category_name = $is_edit ? $category['category_name'] : '';
 $category_description = $is_edit ? $category['category_description'] : '';
 $category_slug = $is_edit ? $category['category_slug'] : '';
+$parent_id = $is_edit ? (isset($category['parent_id']) ? $category['parent_id'] : null) : null;
 $sort_order = $is_edit ? $category['sort_order'] : 0;
+
+// Get all categories for parent selection (exclude current category if editing)
+$all_categories = B2B_Products_Database::get_all_categories();
+$category_tree = B2B_Products_Database::get_category_tree();
 ?>
 
 <div class="wrap">
@@ -34,6 +39,42 @@ $sort_order = $is_edit ? $category['sort_order'] : 0;
                 <td>
                     <input type="text" name="category_slug" id="category_slug" class="regular-text" value="<?php echo esc_attr($category_slug); ?>">
                     <p class="description">用于URL的别名（如果不填写，将根据分类名称自动生成）</p>
+                </td>
+            </tr>
+            
+            <tr>
+                <th scope="row">
+                    <label for="parent_id">父分类</label>
+                </th>
+                <td>
+                    <select name="parent_id" id="parent_id" class="regular-text">
+                        <option value="">无（顶级分类）</option>
+                        <?php
+                        // Helper function to render category options recursively
+                        if (!function_exists('render_category_options')) {
+                            function render_category_options($categories, $parent_id, $current_id = null, $level = 0) {
+                                foreach ($categories as $cat) {
+                                    // Skip current category and its descendants
+                                    if ($cat['id'] == $current_id) {
+                                        continue;
+                                    }
+                                    
+                                    $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $level);
+                                    $selected = ($cat['id'] == $parent_id) ? 'selected' : '';
+                                    echo '<option value="' . esc_attr($cat['id']) . '" ' . $selected . '>' . $indent . esc_html($cat['category_name']) . '</option>';
+                                    
+                                    // Render children recursively
+                                    if (!empty($cat['children'])) {
+                                        render_category_options($cat['children'], $parent_id, $current_id, $level + 1);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        render_category_options($category_tree, $parent_id, $is_edit ? $category['id'] : null);
+                        ?>
+                    </select>
+                    <p class="description">选择父分类以创建子分类。留空则创建顶级分类。</p>
                 </td>
             </tr>
             

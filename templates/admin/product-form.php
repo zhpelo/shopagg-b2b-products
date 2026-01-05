@@ -26,18 +26,30 @@ if (!is_array($product_images)) {
                 </th>
                 <td>
                     <?php
-                    $categories = B2B_Products_Database::get_all_categories();
+                    $category_tree = B2B_Products_Database::get_category_tree();
                     $current_category_id = $is_edit && isset($product['category_id']) ? $product['category_id'] : 0;
+                    
+                    // Helper function to render category options recursively
+                    if (!function_exists('render_product_category_options')) {
+                        function render_product_category_options($categories, $current_category_id, $level = 0) {
+                            foreach ($categories as $cat) {
+                                $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $level);
+                                $selected = ($cat['id'] == $current_category_id) ? 'selected' : '';
+                                echo '<option value="' . esc_attr($cat['id']) . '" ' . $selected . '>' . $indent . esc_html($cat['category_name']) . '</option>';
+                                
+                                // Render children recursively
+                                if (!empty($cat['children'])) {
+                                    render_product_category_options($cat['children'], $current_category_id, $level + 1);
+                                }
+                            }
+                        }
+                    }
                     ?>
                     <select name="category_id" id="product_category" class="regular-text">
                         <option value="">-- 未分类 --</option>
-                        <?php foreach ($categories as $category): ?>
-                            <option value="<?php echo esc_attr($category['id']); ?>" <?php selected($current_category_id, $category['id']); ?>>
-                                <?php echo esc_html($category['category_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
+                        <?php render_product_category_options($category_tree, $current_category_id); ?>
                     </select>
-                    <p class="description">选择产品所属的分类</p>
+                    <p class="description">选择产品所属的分类（显示分类层级关系）</p>
                     <p><a href="<?php echo admin_url('admin.php?page=b2b-products-categories&action=add'); ?>" target="_blank">添加新分类</a></p>
                 </td>
             </tr>

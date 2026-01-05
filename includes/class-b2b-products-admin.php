@@ -189,6 +189,7 @@ class B2B_Products_Admin {
                 'category_name' => isset($_POST['category_name']) ? $_POST['category_name'] : '',
                 'category_description' => isset($_POST['category_description']) ? $_POST['category_description'] : '',
                 'category_slug' => isset($_POST['category_slug']) ? $_POST['category_slug'] : '',
+                'parent_id' => isset($_POST['parent_id']) && $_POST['parent_id'] ? intval($_POST['parent_id']) : null,
                 'sort_order' => isset($_POST['sort_order']) ? intval($_POST['sort_order']) : 0
             );
             
@@ -219,10 +220,17 @@ class B2B_Products_Admin {
         }
         
         $categories = B2B_Products_Database::get_all_categories();
+        $category_tree = B2B_Products_Database::get_category_tree();
         
         // Get product count for each category
         foreach ($categories as &$cat) {
             $cat['product_count'] = B2B_Products_Database::get_category_product_count($cat['id']);
+        }
+        
+        // Build a map for quick lookup
+        $categories_map = array();
+        foreach ($categories as $cat) {
+            $categories_map[$cat['id']] = $cat;
         }
         
         if (isset($_GET['action']) && $_GET['action'] === 'add' || isset($_GET['action']) && $_GET['action'] === 'edit' || $category) {
