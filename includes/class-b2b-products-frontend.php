@@ -10,6 +10,7 @@ if (!defined('ABSPATH')) {
 class B2B_Products_Frontend {
     
     private static $instance = null;
+    private $current_search_term = '';
     
     public static function get_instance() {
         if (null === self::$instance) {
@@ -25,6 +26,10 @@ class B2B_Products_Frontend {
         add_action('init', array($this, 'add_rewrite_rules'));
         add_filter('query_vars', array($this, 'add_query_vars'));
         add_action('template_redirect', array($this, 'template_redirect'));
+        add_filter('posts_search', array($this, 'add_products_to_search'), 10, 2);
+        add_filter('posts_results', array($this, 'merge_products_to_search_results'), 10, 2);
+        add_filter('post_link', array($this, 'filter_product_permalink'), 10, 2);
+        add_filter('the_title', array($this, 'filter_product_title'), 10, 2);
     }
     
     /**
@@ -291,6 +296,187 @@ class B2B_Products_Frontend {
         ob_start();
         include B2B_PRODUCTS_PLUGIN_DIR . 'templates/frontend/categories-tree.php';
         return ob_get_clean();
+    }
+    
+    /**
+     * Add products to search query
+     * This modifies the search SQL to include products
+     */
+    public function add_products_to_search($search, $query) {
+        // Only modify search queries on frontend
+        if (is_admin() || !$query->is_search() || !$query->is_main_query()) {
+            return $search;
+        }
+        
+        $search_term = $query->get('s');
+        if (empty($search_term)) {
+            return $search;
+        }
+        
+        // Store search term for later use
+        $this->current_search_term = $search_term;
+        
+        return $search;
+    }
+    
+    /**
+     * Merge products into search results
+     */
+    public function merge_products_to_search_results($posts, $query) {
+        // Only modify search queries on frontend
+        if (is_admin() || !$query->is_search() || !$query->is_main_query()) {
+            return $posts;
+        }
+        
+        $search_term = $query->get('s');
+        if (empty($search_term)) {
+            return $posts;
+        }
+        
+        // Search products
+        $products = $this->search_products($search_term);
+        
+        if (empty($products)) {
+            return $posts;
+        }
+        
+        // Convert products to post-like objects
+        $product_posts = array();
+        foreach ($products as $product) {
+            $product_post = $this->product_to_post_object($product);
+            if ($product_post) {
+                $product_posts[] = $product_post;
+            }
+        }
+        
+        // Merge products with existing posts
+        $merged_posts = array_merge($posts, $product_posts);
+        
+        // Sort by relevance (you can customize this)
+        usort($merged_posts, function($a, $b) use ($search_term) {
+            $a_title = strtolower($a->post_title);
+            $b_title = strtolower($b->post_title);
+            $search_lower = strtolower($search_term);
+            
+            // Exact match first
+            $a_exact = ($a_title === $search_lower) ? 0 : 1;
+            $b_exact = ($b_title === $search_lower) ? 0 : 1;
+            
+            if ($a_exact !== $b_exact) {
+                return $a_exact - $b_exact;
+            }
+            
+            // Starts with search term
+            $a_starts = (strpos($a_title, $search_lower) === 0) ? 0 : 1;
+            $b_starts = (strpos($b_title, $search_lower) === 0) ? 0 : 1;
+            
+            if ($a_starts !== $b_starts) {
+                return $a_starts - $b_starts;
+            }
+            
+            return 0;
+        });
+        
+        return $merged_posts;
+    }
+    
+    /**
+     * Search products by term
+     */
+    private function search_products($search_term) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . B2B_PRODUCTS_TABLE_NAME;
+        $search_term = '%' . $wpdb->esc_like($search_term) . '%';
+        
+        $query = $wpdb->prepare(
+            "SELECT * FROM $table_name 
+            WHERE product_name LIKE %s 
+            OR product_description LIKE %s 
+            OR product_highlights LIKE %s
+            ORDER BY 
+                CASE 
+                    WHEN product_name LIKE %s THEN 1
+                    WHEN product_highlights LIKE %s THEN 2
+                    ELSE 3
+                END,
+                id DESC",
+            $search_term,
+            $search_term,
+            $search_term,
+            $search_term,
+            $search_term
+        );
+        
+        return $wpdb->get_results($query, ARRAY_A);
+    }
+    
+    /**
+     * Convert product array to post-like object
+     */
+    private function product_to_post_object($product) {
+        if (empty($product) || empty($product['id'])) {
+            return null;
+        }
+        
+        // Create a fake post object
+        $post = new stdClass();
+        $post->ID = 1000000 + intval($product['id']); // Use high ID to avoid conflicts
+        $post->post_author = 1;
+        $post->post_date = $product['created_at'];
+        $post->post_date_gmt = $product['created_at'];
+        $post->post_content = wp_kses_post($product['product_description']);
+        $post->post_title = $product['product_name'];
+        $post->post_excerpt = wp_trim_words(strip_tags($product['product_description']), 30);
+        $post->post_status = 'publish';
+        $post->comment_status = 'closed';
+        $post->ping_status = 'closed';
+        $post->post_password = '';
+        $post->post_name = 'b2b-product-' . $product['id'];
+        $post->to_ping = '';
+        $post->pinged = '';
+        $post->post_modified = $product['updated_at'];
+        $post->post_modified_gmt = $product['updated_at'];
+        $post->post_content_filtered = '';
+        $post->post_parent = 0;
+        $post->guid = B2B_Products_Frontend::get_product_url($product['id']);
+        $post->menu_order = 0;
+        $post->post_type = 'b2b_product';
+        $post->post_mime_type = '';
+        $post->comment_count = 0;
+        $post->filter = 'raw';
+        
+        // Store original product data
+        $post->b2b_product_data = $product;
+        
+        return $post;
+    }
+    
+    /**
+     * Filter product permalink in search results
+     */
+    public function filter_product_permalink($permalink, $post) {
+        if (is_object($post) && isset($post->post_type) && $post->post_type === 'b2b_product' && isset($post->b2b_product_data)) {
+            return B2B_Products_Frontend::get_product_url($post->b2b_product_data['id']);
+        }
+        if (is_numeric($post)) {
+            $post_obj = get_post($post);
+            if ($post_obj && isset($post_obj->post_type) && $post_obj->post_type === 'b2b_product' && isset($post_obj->b2b_product_data)) {
+                return B2B_Products_Frontend::get_product_url($post_obj->b2b_product_data['id']);
+            }
+        }
+        return $permalink;
+    }
+    
+    /**
+     * Filter product title in search results
+     */
+    public function filter_product_title($title, $post_id) {
+        $post = get_post($post_id);
+        if ($post && isset($post->post_type) && $post->post_type === 'b2b_product' && isset($post->b2b_product_data)) {
+            return $post->b2b_product_data['product_name'];
+        }
+        return $title;
     }
 }
 
