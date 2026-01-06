@@ -119,9 +119,10 @@ get_header();
 
 <style>
     .b2b-product-detail-wrapper {
-        max-width: 1200px;
+        max-width: 1280px;
         margin: 40px auto;
         padding: 0 20px;
+        box-sizing: border-box;
     }
 
     .b2b-product-detail-container {
@@ -129,11 +130,20 @@ get_header();
         grid-template-columns: 1fr 1fr;
         gap: 40px;
         align-items: start;
+        width: 100%;
     }
 
     .b2b-product-detail-images {
         position: sticky;
         top: 20px;
+        width: 100%;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .b2b-product-detail-content {
+        width: 100%;
+        min-width: 0;
     }
 
     .b2b-product-detail-main-image {
@@ -143,9 +153,11 @@ get_header();
 
     .b2b-product-detail-main-image img {
         width: 100%;
+        max-width: 100%;
         height: auto;
         border-radius: 8px;
         display: block;
+        box-sizing: border-box;
     }
 
     .b2b-product-detail-main-image .b2b-product-image-link {
@@ -221,7 +233,9 @@ get_header();
 
     .b2b-product-thumbnail {
         width: 100px;
+        min-width: 100px;
         height: 100px;
+        min-height: 100px;
         border: 2px solid transparent;
         border-radius: 4px;
         overflow: hidden;
