@@ -97,7 +97,7 @@
 .b2b-product-images {
     position: relative;
     width: 100%;
-    padding-top: 75%; /* 4:3 aspect ratio */
+    padding-top: 100%; /* 1:1 aspect ratio */
     background: #f5f5f5;
     overflow: hidden;
 }

@@ -24,6 +24,7 @@ class B2B_Products_Admin {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_b2b_products_delete', array($this, 'ajax_delete_product'));
         add_action('wp_ajax_b2b_categories_delete', array($this, 'ajax_delete_category'));
+        add_filter('display_post_states', array($this, 'add_b2b_products_page_state'), 10, 2);
     }
     
     /**
@@ -83,6 +84,7 @@ class B2B_Products_Admin {
     public function register_settings() {
         register_setting('b2b_products_settings', 'b2b_products_inquiry_url');
         register_setting('b2b_products_settings', 'b2b_products_inquiry_button_text');
+        register_setting('b2b_products_settings', 'b2b_products_page_id');
     }
     
     /**
@@ -251,11 +253,13 @@ class B2B_Products_Admin {
             
             update_option('b2b_products_inquiry_url', sanitize_text_field($_POST['inquiry_url']));
             update_option('b2b_products_inquiry_button_text', sanitize_text_field($_POST['inquiry_button_text']));
+            update_option('b2b_products_page_id', isset($_POST['products_page_id']) ? intval($_POST['products_page_id']) : 0);
             echo '<div class="notice notice-success"><p>设置已保存</p></div>';
         }
         
         $inquiry_url = get_option('b2b_products_inquiry_url', '#contact');
         $inquiry_button_text = get_option('b2b_products_inquiry_button_text', 'Request Quote');
+        $products_page_id = get_option('b2b_products_page_id', 0);
         
         include B2B_PRODUCTS_PLUGIN_DIR . 'templates/admin/settings.php';
     }
@@ -298,6 +302,29 @@ class B2B_Products_Admin {
         } else {
             wp_send_json_error('无效的分类ID');
         }
+    }
+    
+    /**
+     * Add custom post state for B2B Products page
+     * 
+     * @param array   $post_states An array of post display states.
+     * @param WP_Post $post        The current post object.
+     * @return array Modified post states array.
+     */
+    public function add_b2b_products_page_state($post_states, $post) {
+        // Only show for pages
+        if ('page' !== $post->post_type) {
+            return $post_states;
+        }
+        
+        // Check if this page is set as the B2B products page
+        $products_page_id = get_option('b2b_products_page_id', 0);
+        
+        if ($products_page_id && (int)$products_page_id === (int)$post->ID) {
+            $post_states['b2b_products_page'] = __('B2B产品展示页面', 'b2b-products');
+        }
+        
+        return $post_states;
     }
 }
 

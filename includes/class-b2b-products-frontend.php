@@ -264,17 +264,15 @@ class B2B_Products_Frontend {
             $categories_map[$cat['id']] = B2B_Products_Database::get_category_product_count($cat['id']);
         }
         
-        // Build products page URL
+        // Build products page URL from settings
+        $products_page_id = get_option('b2b_products_page_id', 0);
         $products_page_url = '';
-        // Try to find a page with [b2b_products] shortcode
-        $pages = get_pages(array('post_status' => 'publish'));
-        foreach ($pages as $page) {
-            if (has_shortcode($page->post_content, 'b2b_products')) {
-                $products_page_url = get_permalink($page->ID);
-                break;
-            }
+        
+        if ($products_page_id > 0) {
+            $products_page_url = get_permalink($products_page_id);
         }
-        // If no page found, use current page or home
+        
+        // If no page set in settings, use current page or home as fallback
         if (empty($products_page_url)) {
             global $post;
             if ($post) {

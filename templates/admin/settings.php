@@ -29,6 +29,39 @@ if (!defined('ABSPATH')) {
                     <p class="description">前台产品展示页面询价按钮显示的文字（默认：Request Quote）</p>
                 </td>
             </tr>
+            <tr>
+                <th scope="row">
+                    <label for="products_page_id">产品展示页面</label>
+                </th>
+                <td>
+                    <?php
+                    $pages = get_pages(array('post_status' => 'publish', 'sort_column' => 'post_title', 'sort_order' => 'ASC'));
+                    ?>
+                    <select name="products_page_id" id="products_page_id" class="regular-text">
+                        <option value="0">-- 请选择页面 --</option>
+                        <?php foreach ($pages as $page): ?>
+                            <option value="<?php echo esc_attr($page->ID); ?>" <?php selected($products_page_id, $page->ID); ?>>
+                                <?php echo esc_html($page->post_title); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description">选择包含 [b2b_products] 简码的页面。此页面URL将用于分类链接和产品详情链接。</p>
+                    <?php if ($products_page_id > 0): 
+                        $selected_page = get_post($products_page_id);
+                        if ($selected_page):
+                    ?>
+                        <p class="description" style="margin-top: 5px;">
+                            <strong>当前选择：</strong> 
+                            <a href="<?php echo esc_url(get_permalink($products_page_id)); ?>" target="_blank">
+                                <?php echo esc_html($selected_page->post_title); ?>
+                            </a>
+                        </p>
+                    <?php 
+                        endif;
+                    endif; 
+                    ?>
+                </td>
+            </tr>
         </table>
         
         <p class="submit">

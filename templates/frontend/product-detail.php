@@ -38,9 +38,19 @@ get_header();
                     <div class="b2b-product-detail-main-image">
                         <?php
                         $main_image_url = wp_get_attachment_image_url($images[0], 'large');
+                        $main_full_url = wp_get_attachment_image_url($images[0], 'full');
                         ?>
-                        <img src="<?php echo esc_url($main_image_url); ?>" alt="<?php echo esc_attr($product_name); ?>" id="b2b-main-product-image">
-
+                        <?php if (count($images) > 1): ?>
+                            <button type="button" class="b2b-product-nav-btn b2b-product-nav-prev" aria-label="上一张">
+                                <span>‹</span>
+                            </button>
+                            <button type="button" class="b2b-product-nav-btn b2b-product-nav-next" aria-label="下一张">
+                                <span>›</span>
+                            </button>
+                        <?php endif; ?>
+                        <a href="<?php echo esc_url($main_full_url); ?>" class="b2b-product-image-link" id="b2b-main-product-link" data-lightbox="product-detail-<?php echo esc_attr($product['id']); ?>">
+                            <img src="<?php echo esc_url($main_image_url); ?>" alt="<?php echo esc_attr($product_name); ?>" id="b2b-main-product-image">
+                        </a>
                     </div>
 
                     <?php if (count($images) > 1): ?>
@@ -102,7 +112,7 @@ get_header();
 
     <?php if (!empty($product_description)): ?>
         <div class="b2b-product-detail-description">
-            <?php echo wp_kses_post($product_description); ?>
+            <?php echo wp_kses_post(wpautop($product_description)); ?>
         </div>
     <?php endif; ?>
 </div>
@@ -127,6 +137,7 @@ get_header();
     }
 
     .b2b-product-detail-main-image {
+        position: relative;
         margin-bottom: 20px;
     }
 
@@ -134,12 +145,78 @@ get_header();
         width: 100%;
         height: auto;
         border-radius: 8px;
+        display: block;
+    }
+
+    .b2b-product-detail-main-image .b2b-product-image-link {
+        display: block;
+    }
+
+    .b2b-product-nav-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        font-size: 24px;
+        color: #333;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .b2b-product-nav-btn:hover {
+        background: rgba(255, 255, 255, 1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        color: #0073aa;
+    }
+
+    .b2b-product-nav-btn:active {
+        transform: translateY(-50%) scale(0.95);
+    }
+
+    .b2b-product-nav-prev {
+        left: 15px;
+    }
+
+    .b2b-product-nav-next {
+        right: 15px;
     }
 
     .b2b-product-detail-thumbnails {
         display: flex;
         gap: 10px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: #ccc transparent;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 5px;
+    }
+
+    .b2b-product-detail-thumbnails::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .b2b-product-detail-thumbnails::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .b2b-product-detail-thumbnails::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 3px;
+    }
+
+    .b2b-product-detail-thumbnails::-webkit-scrollbar-thumb:hover {
+        background: #999;
     }
 
     .b2b-product-thumbnail {
@@ -252,26 +329,104 @@ get_header();
         .b2b-product-detail-title {
             font-size: 24px;
         }
+
+        .b2b-product-nav-btn {
+            width: 36px;
+            height: 36px;
+            font-size: 20px;
+        }
+
+        .b2b-product-nav-prev {
+            left: 10px;
+        }
+
+        .b2b-product-nav-next {
+            right: 10px;
+        }
+
+        .b2b-product-thumbnail {
+            width: 80px;
+            height: 80px;
+            flex-shrink: 0;
+        }
     }
 </style>
 
 <script>
     jQuery(document).ready(function($) {
-        // Thumbnail click handler
-        $('.b2b-product-thumbnail').on('click', function(e) {
-            e.preventDefault();
-            var $thumbnail = $(this);
+        var currentImageIndex = 0;
+        var totalImages = $('.b2b-product-thumbnail').length;
+        
+        // Function to update main image
+        function updateMainImage(index) {
+            if (index < 0 || index >= totalImages) return;
+            
+            currentImageIndex = index;
+            var $thumbnail = $('.b2b-product-thumbnail').eq(index);
             var $img = $thumbnail.find('img');
             var largeUrl = $img.data('large');
             var fullUrl = $img.data('full');
 
             // Update main image
             $('#b2b-main-product-image').attr('src', largeUrl);
-            $('.b2b-product-image-link').first().attr('href', fullUrl);
+            $('#b2b-main-product-link').attr('href', fullUrl);
 
             // Update active thumbnail
             $('.b2b-product-thumbnail').removeClass('active');
             $thumbnail.addClass('active');
+            
+            // Scroll thumbnail into view
+            var $thumbnailsContainer = $('.b2b-product-detail-thumbnails');
+            var containerWidth = $thumbnailsContainer.width();
+            var thumbnailWidth = $thumbnail.outerWidth(true);
+            var thumbnailOffset = $thumbnail.position().left;
+            var scrollLeft = $thumbnailsContainer.scrollLeft();
+            var thumbnailCenter = scrollLeft + thumbnailOffset - (containerWidth / 2) + (thumbnailWidth / 2);
+            
+            $thumbnailsContainer.animate({
+                scrollLeft: thumbnailCenter
+            }, 300);
+        }
+        
+        // Thumbnail click handler
+        $('.b2b-product-thumbnail').on('click', function(e) {
+            e.preventDefault();
+            var index = $(this).index();
+            updateMainImage(index);
+        });
+        
+        // Previous button handler
+        $('.b2b-product-nav-prev').on('click', function(e) {
+            e.preventDefault();
+            var newIndex = currentImageIndex - 1;
+            if (newIndex < 0) {
+                newIndex = totalImages - 1; // Loop to last image
+            }
+            updateMainImage(newIndex);
+        });
+        
+        // Next button handler
+        $('.b2b-product-nav-next').on('click', function(e) {
+            e.preventDefault();
+            var newIndex = currentImageIndex + 1;
+            if (newIndex >= totalImages) {
+                newIndex = 0; // Loop to first image
+            }
+            updateMainImage(newIndex);
+        });
+        
+        // Keyboard navigation
+        $(document).on('keydown', function(e) {
+            // Only navigate when not typing in input fields
+            if ($(e.target).is('input, textarea')) return;
+            
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                $('.b2b-product-nav-prev').trigger('click');
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                $('.b2b-product-nav-next').trigger('click');
+            }
         });
     });
 </script>
