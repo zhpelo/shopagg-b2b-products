@@ -16,7 +16,7 @@ if (!function_exists('render_category_rows')) {
                 <td>
                     <?php echo $indent; ?>
                     <?php if ($has_children): ?>
-                        <span class="dashicons dashicons-arrow-right" style="font-size: 16px; vertical-align: middle;"></span>
+                        <span class="dashicons dashicons-arrow-right" style="font-size: 16px; margin-left: -24px; vertical-align: middle;"></span>
                     <?php endif; ?>
                     <strong><?php echo esc_html($category['category_name']); ?></strong>
                 </td>
